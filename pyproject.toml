@@ -1,0 +1,32 @@
+[project]
+name = "wiki-rag"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "ThienNLH3"}
+]
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi (>=0.135.1,<0.136.0)",
+    "uvicorn (>=0.41.0,<0.42.0)",
+    "sqlalchemy (>=2.0.48,<3.0.0)",
+    "psycopg2-binary (>=2.9.11,<3.0.0)",
+    "httpx (>=0.28.1,<0.29.0)",
+    "beautifulsoup4 (>=4.14.3,<5.0.0)",
+    "elasticsearch (>=9.3.0,<10.0.0)",
+    "sentence-transformers (>=5.2.3,<6.0.0)",
+    "langchain (>=1.2.11,<2.0.0)",
+    "langchain-community (>=0.4.1,<0.5.0)",
+    "langchain-openai (>=1.1.11,<2.0.0)",
+    "langchain-text-splitters (>=1.1.1,<2.0.0)",
+    "python-dotenv (>=1.2.2,<2.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.dependencies]
+python = ">=3.13, <4.0.0"
