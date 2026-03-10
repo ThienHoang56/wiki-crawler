@@ -14,8 +14,18 @@ import httpx
 from langchain_core.tools import tool
 
 BASE_URL = os.getenv("RAG_API_BASE_URL", "http://localhost:8001/api/v1")
-# Use gemini-2.5-flash for tool calls (has more quota than gemini-flash-lite-latest)
-_TOOL_LLM_MODEL = os.getenv("TOOL_LLM_MODEL", "gemini-2.5-flash" if os.getenv("GEMINI_API_KEY") else None)
+# Model to use inside rag_answer tool call (overrides the API server's LLM_MODEL)
+# Priority: TOOL_LLM_MODEL env > Groq > Gemini > None (use server default)
+def _resolve_tool_model() -> str | None:
+    if os.getenv("TOOL_LLM_MODEL"):
+        return os.getenv("TOOL_LLM_MODEL")
+    if os.getenv("GROQ_API_KEY"):
+        return "llama-3.3-70b-versatile"
+    if os.getenv("GEMINI_API_KEY"):
+        return "gemini-2.5-flash"
+    return None
+
+_TOOL_LLM_MODEL = _resolve_tool_model()
 _TIMEOUT = 60.0  # seconds — crawl + index can be slow
 
 

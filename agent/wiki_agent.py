@@ -71,27 +71,27 @@ AGENT_SYSTEM_PROMPT = textwrap.dedent("""\
 def build_llm(model: str | None = None):
     """Build an LLM instance using the same provider logic as the RAG system.
 
-    Defaults to Gemini if configured; falls back to Ollama for local use.
-    To override: pass --model flag or set AGENT_LLM_MODEL env var.
+    Provider priority (when model not specified):
+    1. CLI --model flag
+    2. AGENT_LLM_MODEL env var
+    3. Groq (if GROQ_API_KEY set) — recommended, free
+    4. Gemini (if GEMINI_API_KEY set and model is not Ollama)
+    5. LLM_MODEL from .env
     """
     from src.core.llm_client import _build_llm
     from src.core.config import settings
 
-    # Priority: CLI arg > AGENT_LLM_MODEL env > default to gemini if key present > LLM_MODEL
-    default_model = settings.LLM_MODEL
     if not model:
         agent_model_env = os.getenv("AGENT_LLM_MODEL", "")
         if agent_model_env:
             model = agent_model_env
-        elif settings.GEMINI_API_KEY and not default_model.startswith(("gpt-", "claude-")):
-            # If Gemini key is available and model is Ollama, prefer Gemini for agent
-            # (Ollama may not be running)
-            if "qwen" in default_model or "llama" in default_model or "mistral" in default_model:
-                model = "gemini-flash-lite-latest"
-            else:
-                model = default_model
+        elif settings.GROQ_API_KEY:
+            # Groq: free, best reasoning model for agent tool use
+            model = "llama-3.3-70b-versatile"
+        elif settings.GEMINI_API_KEY:
+            model = "gemini-2.5-flash"
         else:
-            model = default_model
+            model = settings.LLM_MODEL
 
     t = settings.LLM_TEMPERATURE
     n = settings.LLM_MAX_TOKENS

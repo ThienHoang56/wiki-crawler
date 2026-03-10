@@ -23,7 +23,8 @@ dependencies = [
     "langchain-anthropic (>=0.3.0,<1.0.0)",
     "langchain-ollama (>=0.3.0,<1.0.0)",
     "langchain-text-splitters (>=1.1.1,<2.0.0)",
-    "python-dotenv (>=1.2.2,<2.0.0)"
+    "python-dotenv (>=1.2.2,<2.0.0)",
+    "langchain-groq (>=1.1.2,<2.0.0)"
 ]
 
 

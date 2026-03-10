@@ -5,12 +5,22 @@ Tự động chọn provider dựa theo model name hoặc LLM_PROVIDER trong con
   openai    → gpt-4o, gpt-4o-mini, gpt-4-turbo, o1-mini, o3-mini, ...
   gemini    → gemini-2.0-flash, gemini-1.5-pro, gemini-1.5-flash, ...
   anthropic → claude-3-5-sonnet, claude-3-5-haiku, claude-3-opus, ...
-  ollama    → llama3.2, mistral, qwen2.5, phi4, deepseek-r1, ... (local)
+  groq      → llama-3.3-70b-versatile, llama-3.1-8b-instant, mixtral-8x7b-32768, gemma2-9b-it
+              Free tier: 14,400 req/day, 30 RPM. Key: https://console.groq.com
+  ollama    → llama3.2, mistral, qwen2.5, phi4, deepseek-r1, ... (local, no API key)
 """
 from __future__ import annotations
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.language_models import BaseChatModel
 from src.core.config import settings
+
+
+_GROQ_MODELS = {
+    "llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "llama-3.1-8b-instant",
+    "llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768", "gemma2-9b-it",
+    "llama-3.2-90b-vision-preview", "llama-3.2-11b-vision-preview",
+    "llama-guard-3-8b", "llama3-groq-70b-8192-tool-use-preview",
+}
 
 
 def _detect_provider(model: str) -> str:
@@ -22,6 +32,10 @@ def _detect_provider(model: str) -> str:
         return "gemini"
     if m.startswith("claude"):
         return "anthropic"
+    # Groq models: nếu GROQ_API_KEY có sẵn và model khớp → dùng Groq
+    if m in _GROQ_MODELS or m.startswith(("llama3-", "llama-3", "mixtral-", "gemma2-")):
+        if settings.GROQ_API_KEY:
+            return "groq"
     # Còn lại coi là Ollama (local models)
     return "ollama"
 
@@ -68,6 +82,23 @@ def _build_llm(model: str, temperature: float, max_tokens: int) -> BaseChatModel
             max_tokens=max_tokens,
         )
 
+    if provider == "groq":
+        if not settings.GROQ_API_KEY:
+            raise ValueError(
+                "GROQ_API_KEY chưa được set trong .env. "
+                "Lấy key miễn phí tại https://console.groq.com"
+            )
+        try:
+            from langchain_groq import ChatGroq
+        except ImportError:
+            raise ImportError("Chạy: poetry add langchain-groq")
+        return ChatGroq(
+            model=model,
+            api_key=settings.GROQ_API_KEY,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+
     if provider == "ollama":
         try:
             from langchain_ollama import ChatOllama
@@ -80,7 +111,10 @@ def _build_llm(model: str, temperature: float, max_tokens: int) -> BaseChatModel
             num_predict=max_tokens,
         )
 
-    raise ValueError(f"Provider không hỗ trợ: '{provider}'. Chọn: openai | gemini | anthropic | ollama")
+    raise ValueError(
+        f"Provider không hỗ trợ: '{provider}'. "
+        "Chọn: openai | gemini | anthropic | groq | ollama"
+    )
 
 
 class LLMClient:

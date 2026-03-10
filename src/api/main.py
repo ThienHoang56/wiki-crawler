@@ -1,7 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from src.routers import crawl_router, article_router, index_router, search_router
+from src.routers import crawl_router, article_router, index_router, search_router, agent_router
 
 logger = logging.getLogger("wiki-rag")
 
@@ -26,7 +26,8 @@ app = FastAPI(
         "1. `/crawl` — Cào bài viết Wikipedia → lưu vào PostgreSQL\n"
         "2. `/articles` — Xem và quản lý bài viết đã cào\n"
         "3. `/index` — Index bài viết vào Elasticsearch (Offline Pipeline)\n"
-        "4. `/search` — Tìm kiếm và hỏi đáp RAG với LLM"
+        "4. `/search` — Tìm kiếm và hỏi đáp RAG với LLM\n"
+        "5. `/agent` — **AI Agent** với ReAct loop + multi-turn conversation"
     ),
     version="1.0.0",
     lifespan=lifespan,
@@ -36,6 +37,7 @@ app.include_router(crawl_router.router)
 app.include_router(article_router.router)
 app.include_router(index_router.router)
 app.include_router(search_router.router)
+app.include_router(agent_router.router)
 
 @app.get("/", tags=["Health"])
 def health_check():

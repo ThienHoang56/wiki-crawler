@@ -22,7 +22,8 @@ class Settings:
     #   openai   → gpt-*, o1-*, o3-*
     #   gemini   → gemini-*
     #   anthropic→ claude-*
-    #   ollama   → llama*, mistral*, qwen*, phi*, deepseek*
+    #   groq     → llama3-*, llama-3*, mixtral-*, gemma2-* (nếu GROQ_API_KEY set)
+    #   ollama   → llama*, mistral*, qwen*, phi*, deepseek* (local, không cần API)
     LLM_PROVIDER      = os.getenv("LLM_PROVIDER", "")        # để trống = auto-detect
     LLM_MODEL         = os.getenv("LLM_MODEL", "gpt-4o-mini")
     LLM_TEMPERATURE   = float(os.getenv("LLM_TEMPERATURE", "0.0"))
@@ -32,6 +33,9 @@ class Settings:
     OPENAI_API_KEY    = os.getenv("OPENAI_API_KEY", "")
     GEMINI_API_KEY    = os.getenv("GEMINI_API_KEY", "")
     ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+    # Groq — free tier: 14,400 req/day, 30 RPM. Models: llama-3.3-70b-versatile,
+    # llama-3.1-8b-instant, mixtral-8x7b-32768, gemma2-9b-it. Get key: https://console.groq.com
+    GROQ_API_KEY      = os.getenv("GROQ_API_KEY", "")
 
     # Ollama (local, không cần API key)
     OLLAMA_BASE_URL   = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
