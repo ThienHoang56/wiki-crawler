@@ -1,26 +1,152 @@
-from langchain_openai import ChatOpenAI
+"""
+Multi-provider LLM Client.
+
+Tự động chọn provider dựa theo model name hoặc LLM_PROVIDER trong config:
+  openai    → gpt-4o, gpt-4o-mini, gpt-4-turbo, o1-mini, o3-mini, ...
+  gemini    → gemini-2.0-flash, gemini-1.5-pro, gemini-1.5-flash, ...
+  anthropic → claude-3-5-sonnet, claude-3-5-haiku, claude-3-opus, ...
+  ollama    → llama3.2, mistral, qwen2.5, phi4, deepseek-r1, ... (local)
+"""
+from __future__ import annotations
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.language_models import BaseChatModel
 from src.core.config import settings
 
+
+def _detect_provider(model: str) -> str:
+    """Tự detect provider từ tên model nếu LLM_PROVIDER không được set."""
+    m = model.lower()
+    if any(m.startswith(p) for p in ("gpt-", "o1-", "o3-", "o4-", "chatgpt")):
+        return "openai"
+    if m.startswith("gemini"):
+        return "gemini"
+    if m.startswith("claude"):
+        return "anthropic"
+    # Còn lại coi là Ollama (local models)
+    return "ollama"
+
+
+def _build_llm(model: str, temperature: float, max_tokens: int) -> BaseChatModel:
+    provider = settings.LLM_PROVIDER or _detect_provider(model)
+
+    if provider == "openai":
+        if not settings.OPENAI_API_KEY:
+            raise ValueError("OPENAI_API_KEY chưa được set trong .env")
+        from langchain_openai import ChatOpenAI
+        return ChatOpenAI(
+            model=model,
+            api_key=settings.OPENAI_API_KEY,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+
+    if provider == "gemini":
+        if not settings.GEMINI_API_KEY:
+            raise ValueError("GEMINI_API_KEY chưa được set trong .env")
+        try:
+            from langchain_google_genai import ChatGoogleGenerativeAI
+        except ImportError:
+            raise ImportError("Chạy: pip install langchain-google-genai")
+        return ChatGoogleGenerativeAI(
+            model=model,
+            google_api_key=settings.GEMINI_API_KEY,
+            temperature=temperature,
+            max_output_tokens=max_tokens,
+        )
+
+    if provider == "anthropic":
+        if not settings.ANTHROPIC_API_KEY:
+            raise ValueError("ANTHROPIC_API_KEY chưa được set trong .env")
+        try:
+            from langchain_anthropic import ChatAnthropic
+        except ImportError:
+            raise ImportError("Chạy: pip install langchain-anthropic")
+        return ChatAnthropic(
+            model=model,
+            api_key=settings.ANTHROPIC_API_KEY,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+
+    if provider == "ollama":
+        try:
+            from langchain_ollama import ChatOllama
+        except ImportError:
+            raise ImportError("Chạy: pip install langchain-ollama")
+        return ChatOllama(
+            model=model,
+            base_url=settings.OLLAMA_BASE_URL,
+            temperature=temperature,
+            num_predict=max_tokens,
+        )
+
+    raise ValueError(f"Provider không hỗ trợ: '{provider}'. Chọn: openai | gemini | anthropic | ollama")
+
+
 class LLMClient:
-    _llm: ChatOpenAI = None
+    """
+    Lazy-init multi-provider LLM client.
+    Cache instance theo (model, temperature, max_tokens) để tránh init lại mỗi request.
+    """
+    _cache: dict[tuple, BaseChatModel] = {}
 
-    @property
-    def llm(self) -> ChatOpenAI:
-        """Lazy init: chỉ khởi tạo kết nối LLM khi lần đầu được gọi."""
-        if self._llm is None:
-            self._llm = ChatOpenAI(
-                model=settings.LLM_MODEL,
-                api_key=settings.OPENAI_API_KEY,
-                temperature=0.0,
-            )
-        return self._llm
+    def _get_llm(
+        self,
+        model: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+    ) -> BaseChatModel:
+        m = model or settings.LLM_MODEL
+        t = temperature if temperature is not None else settings.LLM_TEMPERATURE
+        n = max_tokens or settings.LLM_MAX_TOKENS
+        key = (m, t, n)
+        if key not in self._cache:
+            self._cache[key] = _build_llm(m, t, n)
+        return self._cache[key]
 
-    def generate_response(self, prompt: str, system_prompt: str = "You are a helpful assistant.") -> str:
+    def generate_response(
+        self,
+        prompt: str,
+        system_prompt: str = "You are a helpful assistant.",
+        model: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+    ) -> dict:
+        """
+        Gọi LLM và trả về dict gồm answer + metadata.
+        """
+        llm = self._get_llm(model, temperature, max_tokens)
         messages = [
             SystemMessage(content=system_prompt),
             HumanMessage(content=prompt),
         ]
-        return self.llm.invoke(messages).content
+        response = llm.invoke(messages)
+        provider = settings.LLM_PROVIDER or _detect_provider(model or settings.LLM_MODEL)
+
+        # Lấy token usage nếu provider support
+        usage = {}
+        if hasattr(response, "usage_metadata") and response.usage_metadata:
+            u = response.usage_metadata
+            usage = {
+                "input_tokens":  getattr(u, "input_tokens", None),
+                "output_tokens": getattr(u, "output_tokens", None),
+            }
+
+        return {
+            "answer":   response.content,
+            "model":    model or settings.LLM_MODEL,
+            "provider": provider,
+            "usage":    usage,
+        }
+
+    @property
+    def available_providers(self) -> list[str]:
+        providers = []
+        if settings.OPENAI_API_KEY:    providers.append("openai")
+        if settings.GEMINI_API_KEY:    providers.append("gemini")
+        if settings.ANTHROPIC_API_KEY: providers.append("anthropic")
+        providers.append("ollama")  # always available nếu Ollama đang chạy
+        return providers
+
 
 llm_client = LLMClient()

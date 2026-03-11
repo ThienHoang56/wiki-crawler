@@ -18,8 +18,23 @@ class Settings:
     INDEX_NAME = os.getenv("INDEX_NAME", "wiki_chunks")
 
     # LLM Config
-    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-    LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o-mini")
+    # Provider tự động detect từ model name nếu để trống:
+    #   openai   → gpt-*, o1-*, o3-*
+    #   gemini   → gemini-*
+    #   anthropic→ claude-*
+    #   ollama   → llama*, mistral*, qwen*, phi*, deepseek*
+    LLM_PROVIDER      = os.getenv("LLM_PROVIDER", "")        # để trống = auto-detect
+    LLM_MODEL         = os.getenv("LLM_MODEL", "gpt-4o-mini")
+    LLM_TEMPERATURE   = float(os.getenv("LLM_TEMPERATURE", "0.0"))
+    LLM_MAX_TOKENS    = int(os.getenv("LLM_MAX_TOKENS", "1024"))
+
+    # API Keys
+    OPENAI_API_KEY    = os.getenv("OPENAI_API_KEY", "")
+    GEMINI_API_KEY    = os.getenv("GEMINI_API_KEY", "")
+    ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+
+    # Ollama (local, không cần API key)
+    OLLAMA_BASE_URL   = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
     # Embedding Config
     # QUAN TRỌNG: EMBEDDING_DIMS phải khớp với model đang dùng.

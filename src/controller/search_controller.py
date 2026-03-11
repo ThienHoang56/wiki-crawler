@@ -2,7 +2,7 @@ from fastapi import HTTPException
 from src.services.search_service import search_service
 from src.schemas.search_schema import (
     SearchRequest, SearchResponse, ChunkResult,
-    AskRequest, AskResponse,
+    AskRequest, AskResponse, LLMUsage,
 )
 
 class SearchController:
@@ -29,11 +29,22 @@ class SearchController:
 
     def ask(self, req: AskRequest) -> AskResponse:
         try:
-            result = search_service.answer_query(req.query)
+            result = search_service.answer_query(
+                query=req.query,
+                top_k=req.top_k,
+                model=req.model,
+                temperature=req.temperature,
+                max_tokens=req.max_tokens,
+            )
             return AskResponse(
                 query=req.query,
                 answer=result["answer"],
                 sources=[ChunkResult(**s) for s in result["sources"]],
+                model=result["model"],
+                provider=result["provider"],
+                usage=LLMUsage(**result.get("usage", {})),
             )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
