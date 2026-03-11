@@ -4,6 +4,7 @@ from src.schemas.search_schema import (
     SearchRequest, SearchResponse, ChunkResult,
     AskRequest, AskResponse, LLMUsage,
 )
+from src.core.llm_client import LLMRateLimitError
 
 class SearchController:
     def fulltext(self, req: SearchRequest) -> SearchResponse:
@@ -43,6 +44,12 @@ class SearchController:
                 model=result["model"],
                 provider=result["provider"],
                 usage=LLMUsage(**result.get("usage", {})),
+            )
+        except LLMRateLimitError as e:
+            raise HTTPException(
+                status_code=429,
+                detail={"error": "rate_limit", "message": str(e)},
+                headers={"Retry-After": "10"},
             )
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))

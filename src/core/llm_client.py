@@ -114,30 +114,57 @@ class LLMClient:
     ) -> dict:
         """
         Gọi LLM và trả về dict gồm answer + metadata.
+        Tự retry khi gặp rate limit (429), raise LLMRateLimitError để caller xử lý.
         """
+        import time
+
         llm = self._get_llm(model, temperature, max_tokens)
         messages = [
             SystemMessage(content=system_prompt),
             HumanMessage(content=prompt),
         ]
-        response = llm.invoke(messages)
         provider = settings.LLM_PROVIDER or _detect_provider(model or settings.LLM_MODEL)
+        used_model = model or settings.LLM_MODEL
 
-        # Lấy token usage nếu provider support
-        usage = {}
-        if hasattr(response, "usage_metadata") and response.usage_metadata:
-            u = response.usage_metadata
-            usage = {
-                "input_tokens":  getattr(u, "input_tokens", None),
-                "output_tokens": getattr(u, "output_tokens", None),
-            }
+        last_exc = None
+        for attempt in range(3):
+            try:
+                response = llm.invoke(messages)
 
-        return {
-            "answer":   response.content,
-            "model":    model or settings.LLM_MODEL,
-            "provider": provider,
-            "usage":    usage,
-        }
+                usage = {}
+                if hasattr(response, "usage_metadata") and response.usage_metadata:
+                    u = response.usage_metadata
+                    usage = {
+                        "input_tokens":  getattr(u, "input_tokens", None),
+                        "output_tokens": getattr(u, "output_tokens", None),
+                    }
+
+                return {
+                    "answer":   response.content,
+                    "model":    used_model,
+                    "provider": provider,
+                    "usage":    usage,
+                }
+
+            except Exception as exc:
+                err_str = str(exc)
+                # Rate limit → retry với backoff
+                if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str or "rate" in err_str.lower():
+                    last_exc = exc
+                    wait = 2 ** attempt  # 1s, 2s, 4s
+                    if attempt < 2:
+                        time.sleep(wait)
+                        continue
+                    # Hết retry → raise rõ ràng để trả 429 thay vì 500
+                    raise LLMRateLimitError(
+                        f"Gemini rate limit exceeded. Retry sau vài giây. ({err_str[:120]})"
+                    ) from exc
+                raise  # Lỗi khác → raise thẳng
+
+
+class LLMRateLimitError(Exception):
+    """Raise khi LLM provider trả 429 sau tất cả retries."""
+    pass
 
     @property
     def available_providers(self) -> list[str]:

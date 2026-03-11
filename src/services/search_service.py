@@ -1,8 +1,11 @@
+import logging
 from src.utils.embedder import embedder
 from src.core.vector_db import vector_db
 from src.core.llm_client import llm_client
 from src.core.config import settings
 from typing import List, Dict, Optional
+
+logger = logging.getLogger("wiki-rag")
 
 SYSTEM_PROMPT = (
     "You are an intelligent assistant specialized in answering questions "
@@ -58,13 +61,17 @@ class SearchService:
             f"Question: {query}\nAnswer:"
         )
 
-        result = llm_client.generate_response(
-            prompt=prompt,
-            system_prompt=SYSTEM_PROMPT,
-            model=model,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
+        try:
+            result = llm_client.generate_response(
+                prompt=prompt,
+                system_prompt=SYSTEM_PROMPT,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+        except Exception as exc:
+            logger.error("LLM generate_response failed: %s", exc, exc_info=True)
+            raise
 
         return {
             "answer":   result["answer"],
