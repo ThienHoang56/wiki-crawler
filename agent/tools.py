@@ -20,7 +20,7 @@ def _resolve_tool_model() -> str | None:
     if os.getenv("TOOL_LLM_MODEL"):
         return os.getenv("TOOL_LLM_MODEL")
     if os.getenv("GROQ_API_KEY"):
-        return "llama-3.3-70b-versatile"
+        return "llama-3.1-8b-instant"
     if os.getenv("GEMINI_API_KEY"):
         return "gemini-2.5-flash"
     return None

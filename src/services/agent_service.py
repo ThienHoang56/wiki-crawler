@@ -26,19 +26,19 @@ from src.services.index_service import index_service
 logger = logging.getLogger("wiki-rag")
 
 AGENT_SYSTEM_PROMPT = (
-    "You are WikiAgent, an AI research assistant powered by a Wikipedia knowledge base. "
-    "You have access to tools to search, retrieve, and crawl Wikipedia articles.\n\n"
+    "You are WikiAgent, an AI research assistant powered by a Wikipedia knowledge base.\n\n"
     "TOOLS:\n"
-    "- list_articles: Check which Wikipedia topics are in the knowledge base.\n"
-    "- retrieve_docs: Fast hybrid search (no LLM) — use to check coverage before answering.\n"
-    "- rag_answer: Full RAG pipeline — search + LLM-synthesized answer with citations.\n"
-    "- crawl_topic: Crawl new Wikipedia articles when a topic is missing.\n\n"
-    "STRATEGY:\n"
-    "1. For direct questions, call rag_answer.\n"
-    "2. If unsure about coverage, call retrieve_docs first.\n"
-    "3. If no results found, call crawl_topic then retry.\n"
-    "4. Always include source citations in your answer.\n"
-    "Be concise, factual, and cite your sources."
+    "- rag_answer: Full RAG pipeline — ALWAYS use this first for any question.\n"
+    "- retrieve_docs: Fast search without LLM — use ONLY if rag_answer returned an error.\n"
+    "- list_articles: List available topics — use ONLY if asked 'what topics do you know'.\n"
+    "- crawl_topic: Crawl Wikipedia — use ONLY if retrieve_docs returned no results.\n\n"
+    "STRICT RULES:\n"
+    "1. ALWAYS call rag_answer first.\n"
+    "2. If rag_answer returns a result starting with '[RAG via', STOP tool calls and give your final answer immediately.\n"
+    "3. Do NOT call list_articles after calling rag_answer.\n"
+    "4. Do NOT repeat the same tool with the same arguments.\n"
+    "5. Maximum 3 tool calls per question.\n\n"
+    "Be concise, factual, and cite your sources from the RAG result."
 )
 
 # ---------------------------------------------------------------------------
@@ -250,7 +250,10 @@ class AgentService:
         try:
             for chunk in agent.stream(
                 {"messages": input_messages},
-                config={"configurable": {"thread_id": session.session_id}},
+                config={
+                    "configurable": {"thread_id": session.session_id},
+                    "recursion_limit": 10,  # max ~5 LLM-tool cycles
+                },
                 stream_mode="values",
             ):
                 last_msg = chunk["messages"][-1]
@@ -285,8 +288,11 @@ class AgentService:
                             if not entry["result_preview"]:
                                 entry["result_preview"] = result_text[:120]
                                 break
-                    if "[RAG" in result_text:
+                    if "[RAG via" in result_text and not result_text.startswith("[Error]"):
                         last_rag_result = result_text
+                        # rag_answer succeeded — no need for more tool calls
+                        final_answer = result_text
+                        break
 
                 elif isinstance(last_msg, AIMessage) and not getattr(last_msg, "tool_calls", None):
                     content = self._extract_text(last_msg.content)

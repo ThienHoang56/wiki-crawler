@@ -86,8 +86,8 @@ def build_llm(model: str | None = None):
         if agent_model_env:
             model = agent_model_env
         elif settings.GROQ_API_KEY:
-            # Groq: free, best reasoning model for agent tool use
-            model = "llama-3.3-70b-versatile"
+            # llama-3.1-8b-instant: 14,400 RPD free limit — sustainable for demo
+            model = "llama-3.1-8b-instant"
         elif settings.GEMINI_API_KEY:
             model = "gemini-2.5-flash"
         else:
